@@ -40,6 +40,16 @@
     "url": "https://github.com/AbcdefgXW/dsh-msg-hub/issues"
   },
   "license": "MIT",
+  "files": [
+    "index.js",
+    "lib/",
+    "scripts/",
+    "dist/",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": "./index.js",
     "./package.json": "./package.json"
