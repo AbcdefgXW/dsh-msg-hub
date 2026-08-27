@@ -1,6 +1,6 @@
 {
   "name": "dsh-msg-hub",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "dsh IM hub: WeChat(ilinkai) / QQ / Feishu bridge with proactive push & remote monitoring",
   "type": "module",
   "main": "index.js",
