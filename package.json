@@ -13,7 +13,8 @@
     "@larksuiteoapi/node-sdk": "^1.73.0",
     "@tencent-connect/qqbot-connector": "^1.2.0",
     "@tencent-connect/qqbot-nodejs": "^1.0.4",
-    "qrcode-terminal": "0.12.0"
+    "qrcode-terminal": "0.12.0",
+    "silk-wasm": "^3.7.1"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-agent": "^0.1.0-rc.6",
