@@ -9,9 +9,16 @@
 
 ## Features
 
-- **📱 WeChat**: ilinkai simulated protocol (QR login), text send/receive
-- **💬 QQ**: Tencent Open Platform official WebSocket channel, text send/receive (C2C / group)
-- **📡 Feishu**: Feishu Open Platform official API (app credentials), text send/receive (P2P / group)
+- **📱 WeChat**: ilinkai simulated protocol (QR login), text / image / voice send/receive
+- **💬 QQ**: Tencent Open Platform official WebSocket channel, text / image / voice (C2C / group)
+- **📡 Feishu**: Feishu Open Platform official API (app credentials), text / image / voice (P2P / group)
+- **🖼️ Images & voice** (supported on all three channels):
+  - **Images**: downloaded into `.im-media/<channel>/<date>/` in the workspace; only the path enters the session and the agent views it with `read_image` — dsh natively supports image input and auto-degrades for text-only models; kept 7 days by default (`DSH_MSG_HUB_MEDIA_KEEP_DAYS`)
+  - **Voice**: transcribed to text before entering the session (models cannot listen to audio). QQ uses the official `asr_refer_text` (free, instant, more accurate than self-hosted ASR) and falls back to self-hosted ASR when empty
+  - **WeChat voice**: official CDN download → AES-128-ECB decrypt → silk→WAV transcode (`silk-wasm`) → self-hosted ASR
+  - **Self-hosted ASR setup**: put `DASHSCOPE_API_KEY` in `state/asr.env`; voice is skipped when unset, text and images are unaffected
+  - **Retention**: media lives in date-based folders and is swept at most once per day on write
+- **🩺 Diagnostic log**: `state/logs/bridge-debug.log` with built-in size rotation (default 5MB × 3) and daily log cleanup (default 14 days); tune via `DSH_MSG_HUB_LOG_MAX_BYTES` / `DSH_MSG_HUB_LOG_KEEP` / `DSH_MSG_HUB_LOG_KEEP_DAYS`
 - **🧩 Proactive push service** (`dsh-channels-push` cordis service):
   - `push({channel, peerId, text})`: send text directly to IM
   - `task({channel, peerId, prompt})`: wake the channel agent to run a task; the AI reply is delivered back to the IM automatically

@@ -1,0 +1,80 @@
+name: Publish Package
+
+# 推 tag（v0.1.29 这种）时自动发布到 npm。
+# 认证走 OIDC trusted publishing：不需要任何 npm token，也不需要 OTP。
+# 前置（一次性，在 npmjs.com 包设置里配）：Trusted Publisher → GitHub Actions
+#   Organization or user: AbcdefgXW
+#   Repository:           dsh-msg-hub
+#   Workflow filename:    publish.yml
+#   Allowed actions:      勾上「npm publish」（直接发布；stage publish 默认已允许）
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '只验证 OIDC 认证与打包，不真正发布'
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write   # OIDC，必须
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'                     # 自带 npm 11（trusted publishing 要求 CLI ≥ 11.5.1）
+          registry-url: 'https://registry.npmjs.org'   # 官方示例要求；配合发布步骤清空 NODE_AUTH_TOKEN，避免占位 token 干扰 OIDC
+          package-manager-cache: false
+
+      - name: 环境与 OIDC 诊断
+        run: |
+          echo "node $(node -v) / npm $(npm -v)"
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL  : $([ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo YES || echo NO)"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo YES || echo NO)"
+          echo "NODE_AUTH_TOKEN               : $([ -n "$NODE_AUTH_TOKEN" ] && echo YES || echo NO)"
+          echo "--- npmrc（token 已脱敏）---"
+          for f in "$HOME/.npmrc" .npmrc; do
+            if [ -f "$f" ]; then echo "[$f]"; sed -E 's/(_authToken=).*/\1<redacted>/' "$f"; fi
+          done
+          echo "--- registry ---"
+          npm config get registry
+          echo "--- OIDC token claims（npm 提交给 registry 的身份信息）---"
+          curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org" \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const t=JSON.parse(s).value;const p=JSON.parse(Buffer.from(t.split('.')[1],'base64url').toString());console.log(JSON.stringify({repository:p.repository,job_workflow_ref:p.job_workflow_ref,ref:p.ref,environment:p.environment??null,event_name:p.event_name},null,2))}catch(e){console.log('OIDC 获取失败:',String(s).slice(0,200))}})"
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 校验 tag 与 package.json 版本一致
+        if: startsWith(github.ref, 'refs/tags/')   # 仅 tag 发布时校验；手动 dispatch 不适用
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "package.json = $PKG / tag = $TAG"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::版本不一致：package.json ($PKG) ≠ tag ($TAG)，已阻止发布"
+            exit 1
+          fi
+
+      - name: 发布到 npm
+        env:
+          NODE_AUTH_TOKEN: ""                      # 显式清空：确保 npm 走 OIDC trusted publishing，而不是 .npmrc 里的占位 token
+        run: |
+          # 输出落盘再打印：debug 日志级别下 npm 的输出偶尔会被 Actions 吞掉
+          npm publish --access public --loglevel=verbose ${{ inputs.dry_run && '--dry-run' || '' }} > /tmp/pub.log 2>&1 || {
+            echo "=== npm publish 失败，完整输出如下 ==="
+            cat /tmp/pub.log
+            exit 1
+          }
+          cat /tmp/pub.log
+        # trusted publishing 会自动生成 provenance，无需 --provenance

@@ -9,9 +9,16 @@
 
 ## 功能
 
-- **📱 微信**：ilinkai 模拟协议（扫码登录），收发文本
-- **💬 QQ**：腾讯开放平台官方 WebSocket 通道，收发文本（C2C 私聊 / 群聊）
-- **📡 飞书**：飞书开放平台官方 API（应用凭证），收发文本（P2P 私聊 / 群聊）
+- **📱 微信**：ilinkai 模拟协议（扫码登录），收发文本 / 图片 / 语音
+- **💬 QQ**：腾讯开放平台官方 WebSocket 通道，收发文本 / 图片 / 语音（C2C 私聊 / 群聊）
+- **📡 飞书**：飞书开放平台官方 API（应用凭证），收发文本 / 图片 / 语音（P2P 私聊 / 群聊）
+- **🖼️ 图片与语音**（三渠道均已支持）：
+  - **图片**：下载后存到工作区 `.im-media/<渠道>/<日期>/`，会话里只带路径，由 agent 用 `read_image` 自行查看——dsh 原生支持图片输入，纯文本模型会自动降级；默认保留 7 天（`DSH_MSG_HUB_MEDIA_KEEP_DAYS` 可调）
+  - **语音**：转成文字后注入会话（模型听不了音频）。QQ 直接用官方给的 `asr_refer_text`（免费、即时、比自建更准），为空才回退自建 ASR
+  - **微信语音**：官方 CDN 下载 → AES-128-ECB 解密 → silk→WAV 转码（`silk-wasm`）→ 自建 ASR
+  - **自建 ASR 需配置**：`state/asr.env` 写 `DASHSCOPE_API_KEY`；未配置时语音自动跳过，不影响文本与图片
+  - **清理策略**：媒体按日期分目录，写入时每天最多清理一次超期文件
+- **🩺 诊断日志**：`state/logs/bridge-debug.log`，内置大小轮转（默认 5MB × 3 份）与每日日志清理（默认 14 天），可用 `DSH_MSG_HUB_LOG_MAX_BYTES` / `DSH_MSG_HUB_LOG_KEEP` / `DSH_MSG_HUB_LOG_KEEP_DAYS` 调整
 - **🧩 主动推送服务**（`dsh-channels-push` cordis 服务）：
   - `push({channel, peerId, text})`：直接向 IM 发文本
   - `task({channel, peerId, prompt})`：唤醒渠道 agent 执行任务，AI 回复自动回传 IM
