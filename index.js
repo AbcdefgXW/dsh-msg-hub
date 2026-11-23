@@ -20,6 +20,7 @@ import { diagLog } from "./lib/diag.js";
 import { createRemoteMonitor } from "./lib/remote.js";
 import { Service } from "@deepseek-ai/cordis";
 
+const qqRecentMessages = new Map();
 export const name = "dsh-msg-hub";
 
 export const inject = ["agents", "sessions", "agentDefaultModel"];
@@ -259,6 +260,17 @@ export function apply(ctx) {
   const qqRuntime = { bots: new Map(), stop: () => {} };
   startQqBots({
     onMessage: async (text, peerKey, replyTarget, msg, bot) => {
+      // 去重：平台会把同一条群 @ 推两种事件；按 会话+内容 3 秒窗口合并
+      try {
+        const now = Date.now();
+        const dkey = peerKey + "|" + text;
+        const last = qqRecentMessages.get(dkey) || 0;
+        if (now - last < 3000) return;
+        qqRecentMessages.set(dkey, now);
+        if (qqRecentMessages.size > 500) {
+          for (const [k, t] of qqRecentMessages) if (now - t > 60000) qqRecentMessages.delete(k);
+        }
+      } catch {}
       const sessionsSvc = ctx.get("sessions");
       if (await remote.handleCommand("qq", peerKey, text, sessionsSvc)) return;
       await bridge.inbound({
